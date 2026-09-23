@@ -32,7 +32,6 @@ A full-stack learning management system built with React (frontend) and FastAPI 
 
 2. **Backend Setup**
    ```bash
-   cd backend
    python -m venv venv
    # On Windows:
    venv\Scripts\activate
@@ -40,6 +39,7 @@ A full-stack learning management system built with React (frontend) and FastAPI 
    # source venv/bin/activate
 
    pip install -r requirements.txt
+   cd backend
    python run.py
    ```
    Backend will run on http://127.0.0.1:8000
