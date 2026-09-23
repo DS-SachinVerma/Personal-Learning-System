@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
 from typing import List, Optional
 
@@ -34,7 +34,11 @@ def list_tasks(
     q: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    query = db.query(models.Task)
+    query = db.query(models.Task).options(
+        selectinload(models.Task.techniques),
+        selectinload(models.Task.insights),
+        selectinload(models.Task.experiments),
+    )
     if domain:
         query = query.filter(models.Task.domain == domain)
     if tag:
@@ -59,7 +63,13 @@ def list_tasks(
 
 
 def _get_task(db: Session, id_or_slug: str) -> models.Task:
-    q = db.query(models.Task)
+    q = db.query(models.Task).options(
+        selectinload(models.Task.techniques),
+        selectinload(models.Task.insights).selectinload(models.Insight.resource),
+        selectinload(models.Task.insights).selectinload(models.Insight.technique),
+        selectinload(models.Task.insights).selectinload(models.Insight.task),
+        selectinload(models.Task.experiments),
+    )
     task = q.filter(models.Task.slug == id_or_slug).first()
     if task is None and id_or_slug.isdigit():
         task = q.filter(models.Task.id == int(id_or_slug)).first()

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 from datetime import datetime
 
@@ -7,6 +7,15 @@ from ..deps import get_db, log_change
 from .. import models, schemas
 
 router = APIRouter()
+
+# Eager-load everything the Resource schema serializes, so listing is a handful
+# of batched queries instead of N+1 round-trips to a remote Postgres.
+_RES_EAGER = (
+    selectinload(models.Resource.insights).selectinload(models.Insight.task),
+    selectinload(models.Resource.insights).selectinload(models.Insight.technique),
+    selectinload(models.Resource.insights).selectinload(models.Insight.resource),
+    selectinload(models.Resource.versions),
+)
 
 
 @router.get("/", response_model=List[schemas.Resource])
@@ -17,7 +26,7 @@ def list_resources(
     q: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    query = db.query(models.Resource)
+    query = db.query(models.Resource).options(*_RES_EAGER)
     if status:
         query = query.filter(models.Resource.status == status)
     if type:
@@ -32,7 +41,10 @@ def list_resources(
 
 @router.get("/{resource_id}", response_model=schemas.Resource)
 def get_resource(resource_id: int, db: Session = Depends(get_db)):
-    r = db.query(models.Resource).filter(models.Resource.id == resource_id).first()
+    r = (
+        db.query(models.Resource).options(*_RES_EAGER)
+        .filter(models.Resource.id == resource_id).first()
+    )
     if r is None:
         raise HTTPException(status_code=404, detail="Resource not found")
     return r

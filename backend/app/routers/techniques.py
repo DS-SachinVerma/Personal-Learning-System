@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 from datetime import datetime
 
@@ -7,6 +7,13 @@ from ..deps import get_db, unique_slug, log_change
 from .. import models, schemas
 
 router = APIRouter()
+
+_TECH_EAGER = (
+    selectinload(models.Technique.tasks),
+    selectinload(models.Technique.insights).selectinload(models.Insight.resource),
+    selectinload(models.Technique.insights).selectinload(models.Insight.task),
+    selectinload(models.Technique.insights).selectinload(models.Insight.technique),
+)
 
 
 def _resolve(db: Session, model, ids):
@@ -23,7 +30,7 @@ def list_techniques(
     q: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    query = db.query(models.Technique)
+    query = db.query(models.Technique).options(*_TECH_EAGER)
     if task_id:
         query = query.join(models.Technique.tasks).filter(models.Task.id == task_id)
     if tag:
@@ -38,7 +45,10 @@ def list_techniques(
 
 @router.get("/{technique_id}", response_model=schemas.Technique)
 def get_technique(technique_id: int, db: Session = Depends(get_db)):
-    tech = db.query(models.Technique).filter(models.Technique.id == technique_id).first()
+    tech = (
+        db.query(models.Technique).options(*_TECH_EAGER)
+        .filter(models.Technique.id == technique_id).first()
+    )
     if tech is None:
         raise HTTPException(status_code=404, detail="Technique not found")
     return tech
